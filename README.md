@@ -1,13 +1,14 @@
-# Speculative Generative Recommendation
+# SpecGR
 
-This is the official PyTorch implementation of the paper **Speculative Generative Recommendation**.
+This is the PyTorch implementation of the paper:
+
+> Yijie Ding, Yupeng Hou, Jiacheng Li, Julian McAuley. **Inductive Generative Recommendation via Retrieval-based Speculation**.
 
 ## Introduction
 
-**Speculative Generative Recommendation (SpecGR)** is a plug-and-play framework designed to enable any Generative Recommendation (GR) model to recommend new, unseen items in an inductive setting. While GR models excel at predicting and recommending items by generating token sequences, they struggle to recommend new items not encountered during training. SpecGR addresses this limitation with a framework consisting of two key components:
+**Speculative Generative Recommendation (SpecGR)** is a plug-and-play framework designed to enable any Generative Recommendation (GR) model to recommend new, unseen items in an inductive setting. While GR models excel at recommending items by generating token sequences, they struggle to recommend new items not seen during training. SpecGR addresses this limitation with a framework consisting of two key components:
 
-- **Drafter Model:** A model with strong inductive recommendation capability that proposes 'candidates' (potentially new items).
-
+- **Drafter:** A model with strong inductive recommendation capability that proposes 'candidates' (potentially containing new items).
 - **Verifier:** The GR model then evaluates these candidates, determining which to accept or reject based on their likelihood of being generated.
 
 Building upon this framework, we propose two drafting strategies:
@@ -27,7 +28,7 @@ pip install -r requirements.txt
 
 ## Model Checkpoints
 
-In the paper, extensive experiments were conducted on three datasets: **Video Games**, **Office Products**, and **Cell Phones & Accessories**. You can download the semantic IDs and trained SpecGR checkpoints [**here**](https://drive.google.com/drive/u/1/folders/1kbKt-J6srLye8-8f6e94nqc1XRvBe3Lu).
+In the paper, we conduct experiments on three categories: **Video Games**, **Office Products**, and **Cell Phones & Accessories** from the [Amazon Reviews 2023](https://amazon-reviews-2023.github.io/) dataset. You can download the preprocessed semantic IDs and trained SpecGR checkpoints [**here**](https://drive.google.com/drive/u/1/folders/1kbKt-J6srLye8-8f6e94nqc1XRvBe3Lu).
 
 ## Quick Start
 
