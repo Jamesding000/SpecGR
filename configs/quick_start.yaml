@@ -1,0 +1,22 @@
+dataset: Video_Games
+exp_id: ''
+unseen_start_index: 22976
+test_start_index: 24070
+num_workers: 4
+
+RQ-VAE/sent_emb_pca: null
+RQ-VAE/code_book_size: 144
+
+TIGER/d_model: 64
+TIGER/d_ff: 1024
+TIGER/n_layers: 4
+
+SpecGR/pretrain_trainer/lr: 0.001
+SpecGR/pretrain_trainer/epochs: 100
+SpecGR/pretrain_trainer/lambda_emb: 6.0
+SpecGR/pretrain_trainer/weight_decay: 0.05
+SpecGR/pretrain_trainer/train_emb_batch_size: 1024
+
+SpecGR/finetune_trainer/lr: 1e-4
+SpecGR/finetune_trainer/lambda_emb: 6.0
+SpecGR/finetune_trainer/weight_decay: 0.05

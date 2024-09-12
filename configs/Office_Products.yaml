@@ -1,0 +1,26 @@
+dataset: Office_Products
+exp_id: ''
+unseen_start_index: 65873
+test_start_index: 70173
+num_workers: 4
+
+RQ-VAE/sent_emb_pca: null
+RQ-VAE/code_book_size: 256
+
+TIGER/d_model: 128
+TIGER/d_ff: 1024
+TIGER/n_layers: 6
+TIGER/num_heads: 6
+
+SpecGR/projection: 128
+
+SpecGR/pretrain_trainer/lr: 0.0003
+SpecGR/pretrain_trainer/epochs: 50
+SpecGR/pretrain_trainer/lambda_emb: 8.0
+SpecGR/pretrain_trainer/weight_decay: 0.035
+SpecGR/pretrain_trainer/train_emb_batch_size: 1024
+
+SpecGR/finetune_trainer/epochs_1: 0
+SpecGR/finetune_trainer/lr_2: 1e-4
+SpecGR/finetune_trainer/lambda_emb: 20.0
+SpecGR/finetune_trainer/weight_decay: 0.035
