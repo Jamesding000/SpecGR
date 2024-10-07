@@ -5,7 +5,6 @@ from typing import Dict, List, Any, Tuple, Optional, Union
 from models.draft.drafter import AbstractDrafter
 from models.genrec.genrec import AbstractGenRec
 from utils import torch_in, safe_topk
-# from models.genrec.beam_search import beam_search_step
 
 class AbstractSpecGR(nn.Module):
     def __init__(self, genrec: AbstractGenRec, config: Dict[str, Any], params: Dict[str, Any]):

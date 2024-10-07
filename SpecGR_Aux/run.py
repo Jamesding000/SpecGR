@@ -1,5 +1,3 @@
-# TODO: check data inconsistency issue
-
 import os
 import torch
 import argparse

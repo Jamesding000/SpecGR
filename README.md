@@ -1,6 +1,6 @@
 # SpecGR
 
-This is the PyTorch implementation of the paper:
+This is the PyTorch implementation for the [paper](https://arxiv.org/abs/2410.02939):
 
 > Yijie Ding, Yupeng Hou, Jiacheng Li, Julian McAuley. **Inductive Generative Recommendation via Retrieval-based Speculation**.
 

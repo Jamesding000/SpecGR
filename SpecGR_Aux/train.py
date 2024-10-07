@@ -1,7 +1,3 @@
-# TODO: from trainers.drafter_trainer import Trainer, ...
-
-# TODO: check data inconsistency issue
-
 import os
 import torch
 import argparse
@@ -73,7 +69,7 @@ def train_genrec(config, device, saved_id_path, saved_target_model_path, log_fil
         embeddings = torch.Tensor(embeddings).to(device)
         
         tokenizer = TIGERTokenizer(config, item_2_semantic_id=None)
-        tokenizer.fit(embeddings, device=device)
+        tokenizer.fit(embeddings_in_sample, device=device)
         semantic_ids = tokenizer.transform(embeddings, device=device)
         
         # Add a padding row to the embeddings matrix

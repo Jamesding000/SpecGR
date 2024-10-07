@@ -70,15 +70,9 @@ def safe_topk(tensor, k, dim=-1):
         return torch.topk(tensor, k, dim=dim)
 
 def repeat_interleave_with_expand(tensor, num_repeats, dim=0):
-    # Add a new dimension at the specified dimension
     tensor = tensor.unsqueeze(dim + 1)
-
-    # Expand this new dimension to the number of repeats
     expanded_tensor = tensor.expand(*tensor.size()[:dim + 1], num_repeats, *tensor.size()[dim + 2:])
-    
-    # Flatten the new dimension into the original specified dimension
     expanded_tensor = expanded_tensor.reshape(-1, *tensor.size()[dim + 2:])
-    
     return expanded_tensor
 
 def gather_indicies(output, gather_index):
