@@ -99,9 +99,9 @@ class SpecGRForRecLightningModule(L.LightningModule):
         self.test_outputs.append(metrics)
         
         self.log_dict(metrics, on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=True)
-        if (batch_idx + 1) % 1000 == 0:
-            avg_metrics = self.evaluator.process_evaluation_result(self.test_outputs)
-            print(f'Average Recall@50 after {batch_idx + 1} steps: {avg_metrics}')
+        # if (batch_idx + 1) % 1000 == 0:
+        #     avg_metrics = self.evaluator.process_evaluation_result(self.test_outputs)
+        #     print(f'Average Recall@50 after {batch_idx + 1} steps: {avg_metrics}')
 
         return metrics
 
