@@ -70,9 +70,15 @@ def safe_topk(tensor, k, dim=-1):
         return torch.topk(tensor, k, dim=dim)
 
 def repeat_interleave_with_expand(tensor, num_repeats, dim=0):
+    # Add a new dimension at the specified dimension
     tensor = tensor.unsqueeze(dim + 1)
+
+    # Expand this new dimension to the number of repeats
     expanded_tensor = tensor.expand(*tensor.size()[:dim + 1], num_repeats, *tensor.size()[dim + 2:])
+    
+    # Flatten the new dimension into the original specified dimension
     expanded_tensor = expanded_tensor.reshape(-1, *tensor.size()[dim + 2:])
+    
     return expanded_tensor
 
 def gather_indicies(output, gather_index):
@@ -89,7 +95,7 @@ def load_semantic_ids(config, saved_id_path=None):
 
     if not dist.is_initialized() or (dist.is_initialized() and dist.get_rank() == 0):
         print('Semantic ids loaded from:', saved_id_path)
-        print(semantic_ids)
+        # print(semantic_ids)
     
     return semantic_ids
 
@@ -101,8 +107,8 @@ def load_item_embeddings(config, saved_emb_path=None):
 
     if not dist.is_initialized() or (dist.is_initialized() and dist.get_rank() == 0):
         print('Item embeddings loaded from:', saved_emb_path)
-        print(item_embeddings.round(4))
-        print(item_embeddings.shape)
+        # print(item_embeddings.round(4))
+        # print(item_embeddings.shape)
     
     return item_embeddings
 

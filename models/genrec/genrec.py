@@ -52,7 +52,11 @@ class AbstractGenRec(nn.Module):
 
     @torch.no_grad()
     def beam_search_step(self, logits, decoder_input_ids, beam_scores, beam_idx_offset, batch_size, num_beams):
-        assert batch_size * num_beams == logits.shape[0]
+        assert batch_size * num_beams == logits.shape[0], (
+            f"Mismatch between expected and actual shape of logits: "
+            f"expected {batch_size * num_beams} (batch_size * num_beams), "
+            f"got {logits.shape[0]} (logits.shape[0])."
+        )
 
         vocab_size = logits.shape[-1]
         next_token_logits = logits[:, -1, :]

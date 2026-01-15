@@ -20,10 +20,12 @@ import numpy as np
 from tqdm import tqdm
 
 class TIGERTokenizer(AbstractTokenizer):
-    def __init__(self, config: dict, semantic_ids=None):
+
+    def __init__(self, config: dict, semantic_ids=None, saved_model_path=None):
         super().__init__(config)
-        self.rqvae_config = config['RQ-VAE']
-        self.model_path = f"results/RQVAE/{config['dataset']}{config['exp_id']}.pt"
+        self.rqvae_config = config["RQ-VAE"]
+        self.model_path = saved_model_path or f"results/RQVAE/{config['dataset']}{config['exp_id']}.pt"
+        os.makedirs("results/RQVAE/", exist_ok=True)
         self.item_2_semantic_id = (
             {i: list(semantic_ids[i, :]) for i in range(len(semantic_ids))}
             if semantic_ids is not None
@@ -45,7 +47,7 @@ class TIGERTokenizer(AbstractTokenizer):
     @property
     def pad_token_id(self):
         return 0
-     
+
     @property
     def bos_token_id(self):
         return self.n_digits * self.code_book_size + 1
@@ -61,22 +63,34 @@ class TIGERTokenizer(AbstractTokenizer):
     @property
     def vocab_size(self):
         return self.eos_token_id + 1
-    
+
     def _init_rqvae(self, device):
         return RQVAE(
-            hidden_sizes=[self.rqvae_config['sent_emb_dim']] + self.rqvae_config['hidden_dim'],
-            n_codebooks=self.rqvae_config['num_layers'],
-            codebook_size=self.rqvae_config['code_book_size'],
-            dropout=self.rqvae_config['dropout'],
-            low_usage_threshold=self.rqvae_config['rqvae_low_usage_threshold']
+            hidden_sizes=[
+                self.rqvae_config["sent_emb_pca"] or self.rqvae_config["sent_emb_dim"]
+            ] + self.rqvae_config["hidden_dim"],
+            n_codebooks=self.rqvae_config["num_layers"],
+            codebook_size=self.rqvae_config["code_book_size"],
+            dropout=self.rqvae_config["dropout"],
+            low_usage_threshold=self.rqvae_config["rqvae_low_usage_threshold"],
         ).to(device)
-        
-    def fit(self, embeddings_train, device):
-        assert self.item_2_semantic_id is None, "Item_2_semantic_id mapping found, no need to retrain the Tokenizer."
-        
+
+    def fit_transform(self, embeddings, unseen_start_index, device):
+        if self.rqvae_config['sent_emb_pca'] is not None:
+            print(f"Applying PCA = {self.rqvae_config['sent_emb_pca']}")
+            from sklearn.decomposition import PCA
+            pca = PCA(n_components=self.rqvae_config['sent_emb_pca'], whiten=True)
+            embeddings = pca.fit_transform(embeddings)
+            print(f"Transformed embeddings: {embeddings.shape}")
+
+        embeddings_train = embeddings[:unseen_start_index]
+
+        embeddings_train = torch.Tensor(embeddings_train).to(device)
+        embeddings = torch.Tensor(embeddings).to(device)
+
         model = self._init_rqvae(device)
         model.generate_codebook(embeddings_train, device)
-        
+
         optimizer = torch.optim.Adagrad(model.parameters(), lr=self.rqvae_config['lr'])
         dataloader = DataLoader(TensorDataset(embeddings_train), batch_size=self.rqvae_config['batch_size'], shuffle=True)
 
@@ -90,32 +104,27 @@ class TIGERTokenizer(AbstractTokenizer):
                 loss.backward()
                 optimizer.step()
 
-        torch.save(model.state_dict(), self.model_path, pickle_protocol=4)
+        # torch.save(model.state_dict(), self.model_path, pickle_protocol=4)
         print("Training complete.")
 
-    def transform(self, embeddings, device):
-        embeddings = torch.Tensor(embeddings).to(device)
-        model = self._init_rqvae(device)
-        model.load_state_dict(torch.load(self.model_path))
         model.eval()
-
         semantic_ids = model.encode(embeddings)
-        semantic_id_2_item = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-        semantic_ids_full = []
 
-        for i in range(len(semantic_ids)):
-            id = semantic_ids[i]
-            id_dict = semantic_id_2_item[id[0]][id[1]][id[2]]
-            id_dict[len(id_dict)] = i+1
-            semantic_ids_full.append(list(id) + [len(id_dict)])
-            
+        sem_id2item = defaultdict(list)
+        semantic_ids_full = []
+        for i, sem_id in enumerate(semantic_ids):
+            str_id = " ".join(map(str, sem_id))
+            sem_id2item[str_id].append(i + 1)
+            collision_id = len(sem_id2item[str_id])
+            semantic_ids_full.append(list(sem_id) + [collision_id])
+
         semantic_ids_full = np.array(semantic_ids_full)
         semantic_ids_with_offset = semantic_ids_full + (np.arange(self.n_digits) * self.code_book_size + 1).reshape(1,-1)
-        
+
         return semantic_ids_with_offset
 
     def tokenize(self, input_sequence, item_id):
-        
+
         input_ids = [self.bos_token_id]
 
         for i in range(len(input_sequence)):
@@ -132,7 +141,7 @@ class TIGERTokenizer(AbstractTokenizer):
 
         assert not np.any(labels == self.pad_token_id), labels # No padding in labels
         labels[labels == self.pad_token_id] = -100
-        
+
         return {
             'input_ids': input_ids,
             'attention_mask': attention_mask,

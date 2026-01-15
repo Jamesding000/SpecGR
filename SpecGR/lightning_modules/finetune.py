@@ -8,7 +8,7 @@ import torch.distributed as dist
 import lightning as L
 from transformers import get_scheduler
 import os
-from models.specGR.specGR_train import SpecGR
+from models.SpecGR.specGR_train import SpecGR
 from evaluator import SpecGRForTrainEvaluator
 from SpecGR.lightning_modules.utils import calculate_optimizer_config_in_distributed_setting
 
@@ -86,7 +86,7 @@ class SpecGRFinetuneLightningModule(L.LightningModule):
 
     def init_item_embeddings(self, embeddings: Optional[torch.Tensor] = None) -> None:
         embedding_dim = (
-            self.model.projection.out_features
+            self.model.projection_dim
             if self.model.projection
             else self.model.genrec.config['d_model']
         )
@@ -204,6 +204,7 @@ class SpecGRFinetuneLightningModule(L.LightningModule):
     def on_validation_epoch_end(self) -> None:
         avg_metrics = self.evaluator.process_evaluation_result(self.valid_outputs)
         avg_metrics = self.evaluator.convert_metrics_to_tensor(avg_metrics, self.device)
+        self.log_dict(avg_metrics, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
         if avg_metrics["recall_h_50"] > self.best_metrics:
             self.best_metrics = avg_metrics["recall_h_50"]
             self.best_epoch = self.current_epoch
@@ -222,6 +223,7 @@ class SpecGRFinetuneLightningModule(L.LightningModule):
     def on_test_epoch_end(self) -> None:
         avg_metrics = self.evaluator.process_evaluation_result(self.test_outputs)
         avg_metrics = self.evaluator.convert_metrics_to_tensor(avg_metrics, self.device)
+        self.log_dict(avg_metrics, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
 
     def configure_optimizers(self) -> Tuple[List[Optimizer], List[Dict[str, Union[_LRScheduler, str, int]]]]:
         total_training_steps, total_warmup_steps, scaled_lr = calculate_optimizer_config_in_distributed_setting(

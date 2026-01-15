@@ -40,9 +40,5 @@ class AbstractTokenizer(ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def fit(self, **kwargs):
-        raise NotImplementedError
-    
-    @abstractmethod
-    def transform(self, **kwargs):
+    def fit_transform(self, **kwargs):
         raise NotImplementedError

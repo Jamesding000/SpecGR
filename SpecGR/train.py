@@ -1,12 +1,13 @@
 import argparse
 import torch
+import os
 import numpy as np
 import lightning as L
 from lightning.pytorch.callbacks import LearningRateMonitor
 from lightning.pytorch.loggers import TensorBoardLogger
 from models.genrec.TIGER.model import TIGER
 from models.genrec.TIGER.tokenizer import TIGERTokenizer
-from models.specGR.specGR_train import SpecGR
+from models.SpecGR.specGR_train import SpecGR
 from utils import load_config, get_model_ckpt_path, get_saved_id_path, get_logfile_path, parse_devices, load_semantic_ids
 from SpecGR.lightning_modules.pretrain import SpecGRPretrainLightningModule
 from SpecGR.lightning_modules.finetune import SpecGRFinetuneLightningModule
@@ -14,6 +15,9 @@ from SpecGR.lightning_modules.callbacks import NICE_PROGRESS_BAR
 from SpecGR.lightning_modules.data import SpecGRPretrainDataModule, SpecGRFinetuneDataModule
 from dataloader import SpecGRDataProcessor
 from evaluator import SpecGRForTrainEvaluator
+
+DEFAULT_PRETRAIN_VAL_INTERVAL = 2
+DEFAULT_FINETUNE_VAL_INTERVAL = 1
 
 def setup_paths(config):
     domain, exp_id = config['dataset'], config['exp_id']
@@ -49,7 +53,7 @@ def setup_trainer(trainer_config, devices, log_path, name):
         devices=devices,
         max_epochs=trainer_config['epochs'],
         precision='bf16-mixed',
-        check_val_every_n_epoch=1 if name == 'finetune' else 2,
+        check_val_every_n_epoch= DEFAULT_FINETUNE_VAL_INTERVAL if name == 'finetune' else DEFAULT_PRETRAIN_VAL_INTERVAL,
         logger=logger,
         gradient_clip_val=1.0, 
         gradient_clip_algorithm="norm",
@@ -57,8 +61,18 @@ def setup_trainer(trainer_config, devices, log_path, name):
     )
 
 def pretrain(config, model, semantic_ids, evaluator, data_processor, paths, devices):
+    """
+    Item-sequence contrastive pretraining (Section 3.3: Self-Speculative GR).
+    Optimizes L = λ₁L_CL + L_Gen to enable encoder for KNN-based drafting.
+    """
     trainer_config = config["SpecGR"]["pretrain_trainer"]
+    pretrain_model_path = paths['pretrain_model_path']
     
+    if os.path.exists(pretrain_model_path):
+        model.load_state_dict(torch.load(pretrain_model_path))
+        print(f"Pretrained checkpoint found at: {pretrain_model_path}")
+        print(f"Model weights loaded, resume Training for {trainer_config['epochs']} epochs.")
+        
     ltn_model = SpecGRPretrainLightningModule(
         model=model,
         lambda_emb=trainer_config['lambda_emb'],
@@ -93,6 +107,10 @@ def pretrain(config, model, semantic_ids, evaluator, data_processor, paths, devi
     return ltn_model.model, best_val_result[0], test_result[0]
 
 def finetune(config, model, semantic_ids, evaluator, data_processor, paths, devices):
+    """
+    Learning-to-rank fine-tuning (Section 3.3: Self-Speculative GR).
+    Optimizes L' = λ₂L_CE + L_Gen with frozen item representations for enhanced ranking.
+    """
     trainer_config = config["SpecGR"]["finetune_trainer"]
     
     model.load_state_dict(torch.load(paths['pretrain_model_path']))

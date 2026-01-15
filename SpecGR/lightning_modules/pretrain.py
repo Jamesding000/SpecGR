@@ -2,7 +2,7 @@ import torch
 from torch.optim import AdamW
 import lightning as L
 from transformers import get_scheduler
-from models.specGR.specGR_train import SpecGR
+from models.SpecGR.specGR_train import SpecGR
 from evaluator import SpecGRForTrainEvaluator
 from SpecGR.lightning_modules.utils import calculate_optimizer_config_in_distributed_setting
 
@@ -85,13 +85,14 @@ class SpecGRPretrainLightningModule(L.LightningModule):
     def _log_training_metrics(self, emb_loss, gen_loss, loss, batch_size):
         opt = self.optimizers()
         lr = opt.param_groups[0]['lr']
-        self.log("lr", lr, on_step=True, on_epoch=False, prog_bar=True, logger=False, sync_dist=False)
-        self.log('emb_loss', emb_loss, batch_size=batch_size, on_step=True, on_epoch=False, prog_bar=True, logger=False, sync_dist=False)
-        self.log('gen_loss', gen_loss, batch_size=batch_size, on_step=True, on_epoch=False, prog_bar=True, logger=False, sync_dist=False)
+        self.log("lr", lr, on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=False)
+        self.log('emb_loss', emb_loss, batch_size=batch_size, on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=False)
+        self.log('gen_loss', gen_loss, batch_size=batch_size, on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=False)
+        self.log('train_loss', loss, batch_size=batch_size, on_step=True, on_epoch=False, prog_bar=True, logger=True, sync_dist=False)
         
-        avg_loss = torch.stack([x['loss'] for x in self.train_outputs]).mean() if self.train_outputs else -1
+        avg_loss = torch.stack([x['loss'] for x in self.train_outputs]).mean() if self.train_outputs else torch.tensor(-1.0)
         self.log("avg_train_loss", avg_loss, batch_size=batch_size, on_step=True, on_epoch=False, prog_bar=True, logger=False, sync_dist=False)
-        
+
         self.train_outputs.append({"loss": loss, "emb_loss": emb_loss, "gen_loss": gen_loss})
 
     def on_train_epoch_end(self):
@@ -125,6 +126,7 @@ class SpecGRPretrainLightningModule(L.LightningModule):
     def on_validation_epoch_end(self):
         avg_metrics = self.evaluator.process_evaluation_result(self.valid_outputs)
         avg_metrics = self.evaluator.convert_metrics_to_tensor(avg_metrics, self.device)
+        self.log_dict(avg_metrics, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
         if avg_metrics["recall_h_50"] > self.best_metrics:
             self.best_metrics = avg_metrics["recall_h_50"]
             self.best_epoch = self.current_epoch
@@ -147,6 +149,7 @@ class SpecGRPretrainLightningModule(L.LightningModule):
     def on_test_epoch_end(self):
         avg_metrics = self.evaluator.process_evaluation_result(self.test_outputs)
         avg_metrics = self.evaluator.convert_metrics_to_tensor(avg_metrics, self.device)
+        self.log_dict(avg_metrics, on_step=False, on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
 
     def _save_checkpoint(self, path):
         torch.save(self.model.state_dict(), path)

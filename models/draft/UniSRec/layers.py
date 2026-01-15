@@ -14,7 +14,6 @@ from logging import getLogger
 
 """
 Code adapted from https://github.com/RUCAIBox/UniSRec/blob/master/unisrec.py
-Original Author: Yupeng Hou
 """
 
 class PWLayer(nn.Module):

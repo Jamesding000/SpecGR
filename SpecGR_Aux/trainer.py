@@ -13,7 +13,16 @@ from abc import ABC, abstractmethod
 from utils import get_logfile_path, get_model_ckpt_path
 
 class AbstractTrainer(ABC):
-    def __init__(self, config: Dict[str, Any], device: torch.device, model: torch.nn.Module, evaluator: Any):
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        device: torch.device,
+        model: torch.nn.Module,
+        evaluator: Any,
+        log_file_path: str = None,
+        saved_model_ckpt: str = None,
+    ):
         self.config = config
         self.device = device
         self.model = model.to(device)
@@ -36,12 +45,18 @@ class AbstractTrainer(ABC):
         self.best_metric = float('-inf')
         self.best_epoch = 0
 
-        self.setup_writer()
-        self.saved_model_ckpt = get_model_ckpt_path(self.model_name, self.config['dataset'], self.config['exp_id'])
+        log_file_path = log_file_path or get_logfile_path(
+            self.model_name, self.config["dataset"], self.config["exp_id"]
+        )
+        os.makedirs(log_file_path, exist_ok=True)
+        self.writer = SummaryWriter(log_dir=log_file_path)
+        self.saved_model_ckpt = saved_model_ckpt or get_model_ckpt_path(
+            self.model_name, self.config["dataset"], self.config["exp_id"]
+        )
 
     def _get_optimizer(self) -> torch.optim.Optimizer:
         optimizer_type = self.trainer_config['optimizer']
-        
+
         if optimizer_type == 'Adam':
             return Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         elif optimizer_type == 'AdamW':
@@ -64,14 +79,9 @@ class AbstractTrainer(ABC):
         else:
             raise NotImplementedError(f"Unimplemented scheduler type: {self.trainer_config['scheduler']}")
 
-    def setup_writer(self) -> None:
-        log_dir = get_logfile_path(self.model_name, self.config['dataset'], self.config['exp_id'])
-        os.makedirs(log_dir, exist_ok=True)
-        self.writer = SummaryWriter(log_dir=log_dir)
-
     def fit(self, train_dataloader: DataLoader, val_dataloader: DataLoader) -> None:
         model_path = self.saved_model_ckpt
-        
+
         num_epochs = self.num_epochs or int(np.ceil(self.trainer_config['total_steps'] / len(train_dataloader)))
         for epoch in range(num_epochs):
             self.model.train()
@@ -103,13 +113,13 @@ class AbstractTrainer(ABC):
 
             if (epoch + 1) % 2 == 0:
                 eval_results = self.validate(val_dataloader)
-                
+
                 for key, value in eval_results.items():
                     self.writer.add_scalar(key, value, epoch)
 
                 if self.val_metric not in eval_results:
                     raise KeyError(f"Validation metric '{self.val_metric}' not found in evaluation results.")
-                
+
                 val_score = eval_results[self.val_metric]
                 if val_score > self.best_metric:
                     self.best_metric = val_score
@@ -125,18 +135,34 @@ class AbstractTrainer(ABC):
             self.best_metric = metric_value
             self.best_epoch = epoch
             torch.save(self.model.state_dict(), model_path)
-    
+
     @abstractmethod
     def validate(self, val_dataloader: DataLoader) -> Dict[str, float]:
         pass
-    
+
+
 class UniSRecTrainer(AbstractTrainer):
-    def __init__(self, config: Dict[str, Any], device: torch.device, model: torch.nn.Module, evaluator: Any, val_item_embeddings: torch.Tensor):
-        super().__init__(config, device, model, evaluator)
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        device: torch.device,
+        model: torch.nn.Module,
+        evaluator: Any,
+        val_item_embeddings: torch.Tensor,
+        log_file_path: str = None,
+        saved_model_ckpt: str = None,
+    ):
+        super().__init__(config, device, model, evaluator, log_file_path, saved_model_ckpt)
         self.val_item_embeddings = val_item_embeddings
 
-    def validate(self, val_dataloader: DataLoader) -> Dict[str, float]:  
-        return self.evaluator.evaluate(val_dataloader, device=self.device, item_embeddings=self.val_item_embeddings)
+    def validate(self, val_dataloader: DataLoader) -> Dict[str, float]:
+        return self.evaluator.evaluate(
+            val_dataloader, 
+            device=self.device, 
+            item_embeddings=self.val_item_embeddings
+        )
+
 
 class TIGERTrainer(AbstractTrainer):
     def validate(self, val_dataloader: DataLoader) -> Dict[str, float]:  

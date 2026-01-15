@@ -7,8 +7,11 @@ from tqdm import tqdm
 from rich.console import Console
 from rich.table import Table
 from models.genrec.genrec import AbstractGenRec
-from models.specGR.specGR_inference import SpecGRForRec, SpecGRAuxForRec
-from models.specGR.specGR_train import SpecGR
+# from models.SpecGR.specGR_inference import SpecGRForRec, SpecGRAuxForRec
+from models.SpecGR.SpecGR_clean import SpecGRForRec, SpecGRAuxForRec
+from models.SpecGR.specGR_train import SpecGR
+
+import time
 
 class Evaluator(ABC):
     def __init__(self, model: Any, ks: List[int]):
@@ -63,13 +66,16 @@ class Evaluator(ABC):
         self.metrics = []
 
         progress_bar = tqdm(iter(dataloader))
-
+        
+        self.timer = 0
         for batch in progress_bar:
             metrics = self.evaluation_step(batch, device, **kwargs)
             self.metrics.append(metrics)
+            metrics['time'] = self.timer
             progress_bar.set_description(self.set_prog_bar_description(self.metrics))
 
         progress_bar.close()
+        print(f'time elaspsed: {self.timer}')
         
         avg_metrics = self.process_evaluation_result(self.metrics)
         self.log_dict(avg_metrics)
@@ -166,7 +172,11 @@ class TIGEREvaluator(GenerativeEvaluator):
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
 
+        start_time = time.time()
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        end_time = time.time()
+        self.timer += (end_time - start_time)
+        
         loss = outputs.loss.item()
         metrics = {"loss": loss}
 
@@ -195,19 +205,24 @@ class SpecGRAuxEvaluator(GenerativeEvaluator):
         self.model = model
         
     def evaluation_step(self, batch: Dict[str, Tensor], device: torch.device, **kwargs: Any) -> Dict[str, float]:
-        batch = batch[0]
+        
+        batch = batch[0] # Lightning CombinedLoader will collate batches as batch_data, batch_idx, dataloader_idx 
+        
         batch_draft, batch_target = batch['draft'], batch['generative']
+        batch_size = batch_draft["input_ids"].shape[0]
+        
         inputs_draft = batch_draft["input_ids"].to(device)
         lengths_draft = batch_draft["length"].to(device)
         inputs_target = batch_target["input_ids"].to(device)
         attention_mask_target = batch_target["attention_mask"].to(device)
-        labels_target = batch_target["labels"].to(device)
+        labels = batch_target["labels"].to(device)
         
         constraints = kwargs.get('constraints', None)
         test_item_embs = kwargs['item_embeddings']
         semantic_ids = kwargs['semantic_ids']
         max_k = max(self.ks)
-
+        
+        start_time = time.time()
         recommended_items, scores, runtime_info = self.model.recommend(
             input_ids=inputs_target,
             attention_mask=attention_mask_target,
@@ -219,17 +234,22 @@ class SpecGRAuxEvaluator(GenerativeEvaluator):
             item_seq_len=lengths_draft,
             item_embeddings=test_item_embs,
         )
+        end_time = time.time()
+        self.timer += (end_time - start_time)
 
-        metrics = {
-            "rounds": runtime_info["exit_rounds"],
-            "accepted": runtime_info["num_accepted"]
-        }
+        recommended_items = recommended_items.view(batch_size, max_k, -1)
+        labels = labels.view(batch_size, -1)
 
+        metrics = {}
         for k in self.ks:
-            k_outputs = recommended_items[:k, :].unsqueeze(0)
-            recall, ndcg = self.calculate_generative_metrics_at_k(k_outputs, labels_target[:, :-1], k)
+            recall, ndcg = self.calculate_generative_metrics_at_k(
+                recommended_items[:, :k, :], labels[:, :-1], k
+            )
             metrics[f"recall_{k}"] = recall
             metrics[f"ndcg_{k}"] = ndcg
+            
+        # metrics[f"accepted_{max_k}"] = runtime_info["num_accepted"]
+        # metrics[f"rounds_{max_k}"] = runtime_info["exit_rounds"]
 
         return metrics
     
@@ -246,6 +266,9 @@ class SpecGREvaluator(GenerativeEvaluator):
         self.device = device
 
     def evaluation_step(self, batch: Dict[str, Tensor], device: torch.device, **kwargs: Any) -> Dict[str, float]:
+        
+        batch_size = batch["input_ids"].shape[0]
+        
         input_ids = batch["input_ids"].to(device)
         attention_mask = batch["attention_mask"].to(device)
         labels = batch["labels"].to(device)
@@ -256,6 +279,7 @@ class SpecGREvaluator(GenerativeEvaluator):
         
         max_k = max(self.ks)
 
+        start_time = time.time()
         recommended_items, scores, runtime_info = self.model.recommend(
             input_ids,
             attention_mask,
@@ -265,23 +289,28 @@ class SpecGREvaluator(GenerativeEvaluator):
             return_info=True,
             test_item_embs=test_item_embs,
         )
+        end_time = time.time()
+        
+        recommended_items = recommended_items.view(batch_size, max_k, -1)
+        labels = labels.view(batch_size, -1)
 
         metrics = {}
         for k in self.ks:
             recall, ndcg = self.calculate_generative_metrics_at_k(
-                recommended_items[:, :k].unsqueeze(0), labels[:, :-1], k
+                recommended_items[:, :k, :], labels[:, :-1], k
             )
             metrics[f"recall_{k}"] = recall
             metrics[f"ndcg_{k}"] = ndcg
-
-        metrics[f"accepted_{max_k}"] = runtime_info["num_accepted"]
-        metrics[f"rounds_{max_k}"] = runtime_info["exit_rounds"]
+        
+        metrics['time'] = end_time - start_time
+        # metrics[f"accepted_{max_k}"] = runtime_info["num_accepted"]
+        # metrics[f"rounds_{max_k}"] = runtime_info["exit_rounds"]
 
         return metrics
     
     @property
     def metrics_to_log(self) -> List[str]:
-        return [f"recall_{max(self.ks)}", f"ndcg_{max(self.ks)}", "accepted", "rounds"]
+        return [f"recall_{max(self.ks)}", f"ndcg_{max(self.ks)}", "time"]
 
 class SpecGRForTrainEvaluator(GenerativeEvaluator, DrafterEvaluator):
     def __init__(self, model: SpecGR, ks: List[int], device: torch.device):

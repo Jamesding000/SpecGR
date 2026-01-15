@@ -11,6 +11,7 @@ TIGER/d_model: 64
 TIGER/d_ff: 1024
 TIGER/n_layers: 4
 
+SpecGR/projection: 64
 SpecGR/pretrain_trainer/lr: 0.001
 SpecGR/pretrain_trainer/epochs: 100
 SpecGR/pretrain_trainer/lambda_emb: 6.0

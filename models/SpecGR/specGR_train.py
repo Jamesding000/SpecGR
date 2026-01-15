@@ -19,11 +19,19 @@ class SpecGR(nn.Module):
         self.emb_loss_fct = nn.CrossEntropyLoss()
         self.ft_loss_fct = nn.CrossEntropyLoss()
 
-        projection_dim = config.get("projection", self.hidden_size)
+        self.projection_dim = config.get("projection")
         self.projection = (
-            torch.nn.Linear(self.hidden_size, int(projection_dim))
-            if projection_dim else None
+            nn.Linear(self.hidden_size, self.projection_dim)
+            if self.projection_dim is not None
+            else None
         )
+        # self.projection = (
+        #     nn.Sequential(
+        #         nn.Linear(self.hidden_size, self.projection_dim),
+        #         nn.ReLU(),  # Non-linear activation, SimCLR
+        #         nn.Linear(self.projection_dim, self.projection_dim)
+        #     ) if self.projection_dim is not None else None
+        # )  # non-linear projection, no signficant improvement than linear
 
     def encode(self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, normalize: bool = True) -> torch.Tensor:
         batch_size = self.encoder_batch_size
@@ -83,7 +91,7 @@ class SpecGR(nn.Module):
 
         loss = -torch.log(pos_logits / neg_logits)
         return loss.mean()
-    
+
     def calculate_emb_loss(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, labels: torch.Tensor, item_ids: torch.Tensor) -> torch.Tensor:
         seq_output = self.encode(input_ids, attention_mask)
         labels = torch.cat([torch.full((labels.shape[0], 1), self.genrec.tokenizer.bos_token_id).to(labels.device), labels], dim=1)

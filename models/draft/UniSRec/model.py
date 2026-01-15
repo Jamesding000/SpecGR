@@ -8,7 +8,6 @@ from models.draft.drafter import AbstractDrafter
 
 """
 Code adapted from https://github.com/RUCAIBox/UniSRec/blob/master/unisrec.py
-Original Author: Yupeng Hou
 """
 
 class UniSRec(SASRec):

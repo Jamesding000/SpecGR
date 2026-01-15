@@ -43,14 +43,14 @@ RQ-VAE:
   num_layers: 3
   dropout: 0.0
   code_book_size: 256
-  rqvae_low_usage_threshold: -1
+  rqvae_low_usage_threshold: -1  # reassignment (to low usage entries only) is triggered when there're more than 10 low us…
 
 TIGER:
   n_user_tokens: 1
   n_positions: 82
   n_layers: 4
   num_heads: 4
-  d_model: 64
+  d_model: 128
   d_ff: 1024
   d_kv: 64
   dropout_rate: 0.1
@@ -68,7 +68,7 @@ TIGER:
   
 SpecGR:
   temperature: 0.07
-  projection: 64
+  projection: 128
   encoder_batch_size: 256
 
   pretrain_trainer:
@@ -91,4 +91,7 @@ SpecGR:
     reencode_interval: null
     weight_decay: 0.035
     train_batch_size: 256
+    eval_batch_size: 32
+  
+  inference:
     eval_batch_size: 32
